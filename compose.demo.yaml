@@ -1,0 +1,14 @@
+name: pingfederate-graph-broker-demo
+
+services:
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    ports:
+      - '127.0.0.1:${DEMO_PORT:-8097}:8081'
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']

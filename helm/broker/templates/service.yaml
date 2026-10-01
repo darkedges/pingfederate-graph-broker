@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "directory-broker.name" . }}-portal
+  labels:
+    {{- include "directory-broker.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.portal.serviceType }}
+  selector:
+    app.kubernetes.io/name: directory-broker
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+      protocol: TCP
+{{- if .Values.broker.service.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "directory-broker.name" . }}-api
+  labels:
+    {{- include "directory-broker.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: directory-broker
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: broker
+      protocol: TCP
+{{- end }}

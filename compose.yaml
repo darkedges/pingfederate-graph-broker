@@ -1,0 +1,120 @@
+services:
+  broker:
+    profiles: [broker]
+    # Terraform builds this tag with docker_image before starting Compose.
+    image: pingfederate-graph-broker-broker:latest
+    build:
+      context: .
+      target: broker
+    # Local demo only: share PF's loopback so the mkcert localhost SAN is
+    # valid for broker-to-PF introspection and Reference ID pickup.
+    network_mode: service:pingfederate
+    depends_on:
+      pingfederate:
+        condition: service_healthy
+    environment:
+      LISTEN_ADDR: ':8080'
+      DATA_DIR: /data
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      PF_ISSUER: ${PF_ISSUER:-}
+      PF_INTROSPECTION_URL: ${PF_INTROSPECTION_URL:-}
+      PF_INTROSPECTION_CLIENT_ID: ${PF_INTROSPECTION_CLIENT_ID:-}
+      PF_INTROSPECTION_CLIENT_SECRET: ${PF_INTROSPECTION_CLIENT_SECRET:-}
+      BROKER_AUDIENCE: ${BROKER_AUDIENCE:-}
+      BROKER_LOG_LEVEL: ${BROKER_LOG_LEVEL:-info}
+      PF_PORTAL_CLIENT_IDS: ${PF_PORTAL_CLIENT_IDS:-}
+      PF_AGENT_CLIENT_IDS: ${PF_AGENT_CLIENT_IDS:-}
+      PF_PICKUP_URL: ${PF_PICKUP_URL:-}
+      PF_SP_ADAPTER_ID: ${PF_SP_ADAPTER_ID:-}
+      PF_PICKUP_USER: ${PF_PICKUP_USER:-}
+      PF_PICKUP_PASSWORD: ${PF_PICKUP_PASSWORD:-}
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      SAML_ENABLED: ${SAML_ENABLED:-false}
+      SAML_PF_TOKEN_URL: ${SAML_PF_TOKEN_URL:-}
+      SAML_PF_CLIENT_ID: ${SAML_PF_CLIENT_ID:-}
+      SAML_PF_CLIENT_SECRET: ${SAML_PF_CLIENT_SECRET:-}
+      SAML_ENTRA_TENANT_ID: ${SAML_ENTRA_TENANT_ID:-}
+      SAML_ENTRA_CLIENT_ID: ${SAML_ENTRA_CLIENT_ID:-}
+      SAML_ENTRA_CLIENT_SECRET: ${SAML_ENTRA_CLIENT_SECRET:-}
+      SAML_ENTRA_SCOPE: ${SAML_ENTRA_SCOPE:-}
+      SAML_OBO_CLIENT_ID: ${SAML_OBO_CLIENT_ID:-}
+      SAML_OBO_CLIENT_SECRET: ${SAML_OBO_CLIENT_SECRET:-}
+      SAML_EXPECTED_PF_SUBJECT: ${SAML_EXPECTED_PF_SUBJECT:-}
+      SAML_EXPECTED_ENTRA_OID: ${SAML_EXPECTED_ENTRA_OID:-}
+      # Go also reads the image's public CA bundle; this directory adds only
+      # the local mkcert root for PF, without mounting the portal private key.
+      SSL_CERT_DIR: /etc/broker-certs
+      # Only broker-specific credentials are passed to this container.
+    volumes:
+      - broker-data:/data
+      - ./certs/ca:/etc/broker-certs:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+  pingfederate:
+    image: pingidentity/pingfederate:${PINGFEDERATE_IMAGE_TAG:-edge}
+    container_name: pingfederate-broker
+    environment:
+      PING_IDENTITY_ACCEPT_EULA: "YES"
+      PING_IDENTITY_DEVOPS_USER: ${PING_IDENTITY_DEVOPS_USER}
+      PING_IDENTITY_DEVOPS_KEY: ${PING_IDENTITY_DEVOPS_KEY}
+      SERVER_PROFILE_URL: https://github.com/pingidentity/pingidentity-server-profiles.git
+      SERVER_PROFILE_PATH: getting-started/pingfederate
+      PING_DEBUG: "true"
+      PF_ENGINE_DEBUG: "true"
+      PF_ADMIN_DEBUG: "true"
+    ports:
+      - '127.0.0.1:${PF_ADMIN_PORT:-9999}:9999'
+      - '127.0.0.1:${PF_RUNTIME_PORT:-9031}:9031'
+      # Broker shares this service's network namespace, so publish its port here.
+      - '127.0.0.1:${BROKER_PORT:-18082}:8080'
+      - '127.0.0.1:${PORTAL_PORT:-8788}:8788'
+    volumes:
+      - pingfederate-out:/opt/out
+      # Read-only local mkcert source. PF does not auto-select mounted PEMs;
+      # terraform/pf_local_tls.tf imports and activates this pair via the API.
+      - ./certs:/opt/pf-local-certs:ro
+    tmpfs:
+      - /run/secrets
+  portal:
+    profiles: [portal]
+    image: pingfederate-graph-broker-portal:latest
+    build:
+      context: .
+      target: portal
+    network_mode: service:pingfederate
+    depends_on:
+      broker:
+        condition: service_started
+    environment:
+      PORTAL_LISTEN_ADDR: ':8788'
+      PORTAL_PUBLIC_URL: ${PORTAL_PUBLIC_URL:-https://localhost:8788}
+      PORTAL_TLS_CERT_FILE: /etc/portal-certs/portal.pem
+      PORTAL_TLS_KEY_FILE: /etc/portal-certs/portal-key.pem
+      PORTAL_PF_URL: ${PORTAL_PF_URL:-https://localhost:9031}
+      PORTAL_PF_BROWSER_URL: ${PORTAL_PF_BROWSER_URL:-}
+      PORTAL_PF_CLIENT_ID: ${PORTAL_PF_CLIENT_ID:-directory-portal}
+      PORTAL_PF_CLIENT_SECRET: ${PORTAL_PF_CLIENT_SECRET:-}
+      PORTAL_AGENT_CLIENT_ID: ${PORTAL_AGENT_CLIENT_ID:-}
+      PORTAL_AGENT_CLIENT_SECRET: ${PORTAL_AGENT_CLIENT_SECRET:-}
+      PORTAL_BROKER_URL: http://127.0.0.1:8080
+      PORTAL_PF_CONNECT_START_URL: ${PORTAL_PF_CONNECT_START_URL:-}
+      PORTAL_REFERENCE_SUBJECT: ${PORTAL_REFERENCE_SUBJECT:-}
+      PORTAL_SAML_SUBJECT: ${PORTAL_SAML_SUBJECT:-}
+      PORTAL_SAML_CONNECT_ENABLED: ${PORTAL_SAML_CONNECT_ENABLED:-false}
+      PORTAL_LOG_LEVEL: ${PORTAL_LOG_LEVEL:-info}
+      SSL_CERT_DIR: /etc/portal-ca
+    volumes:
+      - ./certs/portal.pem:/etc/portal-certs/portal.pem:ro
+      - ./certs/portal-key.pem:/etc/portal-certs/portal-key.pem:ro
+      - ./certs/ca:/etc/portal-ca:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+volumes:
+  broker-data:
+  pingfederate-out:

@@ -1,0 +1,13 @@
+FROM golang:1.27.1 AS build
+WORKDIR /src
+COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /demo ./cmd/demo
+
+FROM scratch
+COPY --from=build /demo /demo
+USER 65532:65532
+ENV DEMO_LISTEN_ADDR=:8081
+EXPOSE 8081
+ENTRYPOINT ["/demo"]

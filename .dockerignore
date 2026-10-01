@@ -1,0 +1,13 @@
+.env
+.git
+data
+bin
+coverage.out
+web/node_modules
+web/.next
+web/out
+.go-cache
+.pnpm-store
+certs
+**/.terraform
+**/*.tfstate*

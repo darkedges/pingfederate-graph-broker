@@ -1,0 +1,55 @@
+# Copy to terraform.tfvars (ignored by Git). Terraform does not read the
+# broker's .env automatically. These are the non-secret local endpoints.
+entra_tenant_id     = "224fe641-9036-4262-9a10-281a65cdbf6e"
+pf_admin_url        = "https://localhost:9999"
+pf_public_url       = "https://localhost:9031"
+portal_redirect_uri = "https://localhost:8788/auth/callback"
+# Optional second callback when the portal is exposed through a tunnel.
+# portal_additional_redirect_uri = "https://portal.entraid.darkedges.com/auth/callback"
+
+# Must exactly match the audience returned by PF introspection.
+broker_audience = "https://REPLACE_ME"
+
+# After the first successful identity apply, uncomment this for the second:
+# attach_pf_token_contract = true
+
+# Optional localhost-only portal sign-in. Supply a strong password privately
+# as TF_VAR_pf_dev_login_password; it is stored in Terraform state.
+# enable_dev_login = true
+
+# Keep the SAML exchange client disabled until the local PF exchange policy,
+# per-user SAML mapping, and read-only Entra OBO consent have been verified.
+# enable_saml_exchange_client = true
+# Staging only: validates broker user reference tokens but does not attach the
+# policy or create an Entra-trusted SAML generator.
+# create_saml_processor_policy = true
+# pf_saml_expected_subject = "authenticated-portal-subject"
+# Generate an unused signing key inside local PF (no Entra trust changes):
+# create_saml_signing_key = true
+# To stage a local SAML 1.1 generator using an approved imported signing key:
+# stage_msft11_generator = true
+# pf_msft11_source_admin_url = "https://your-approved-pf-admin-host"
+# For the approved one-user Entra mapping only (does not enable exchange):
+# stage_msft11_mapping = true
+# pf_saml_entra_upn = "approved.user@example.com"
+# pf_saml_immutable_id = "approved-base64-immutable-id"
+# stage_msft11_generator_group = true
+
+# Optional localhost-only Entra-to-portal link for ONE approved account. The
+# immutable Entra object ID is not an email. Supply the adapter's HTTP Basic
+# pass phrase privately as TF_VAR_pf_dev_pickup_password and use the same
+# value for PF_PICKUP_PASSWORD in the ignored broker .env. Review the plan.
+# enable_dev_handoff = true
+# pf_dev_link_entra_oid = "00000000-0000-0000-0000-000000000000"
+
+# Optional two-stage localhost PF TLS transition. First package the mkcert
+# pair as encrypted certs/pingfederate-local.p12 and set its password via
+# TF_VAR_pf_local_tls_keystore_password. Import it, then adopt/review the
+# existing PF-wide SSL settings and activate it. Key material and password
+# enter Terraform state. See terraform/README.md before enabling either flag.
+# enable_local_pf_tls = true
+# activate_local_pf_tls = true
+
+# Deliberately omitted: pf_handoff. Supply only after reviewing the installed
+# Agentless plugin descriptor, HTTPS Reference ID target, and attribute map.
+# Secrets are passed via TF_VAR_ environment variables or a secret manager.

@@ -1,0 +1,50 @@
+replicaCount: 1 # Encrypted file store and portal sessions are single-instance.
+image:
+  broker: ghcr.io/your-org/directory-broker:0.1.0
+  portal: ghcr.io/your-org/directory-portal:0.1.0
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+existingSecret: directory-broker-credentials
+portalTLSSecret: directory-portal-tls
+# Optional secret containing the public PEM roots for private PingFederate CAs.
+# Key: ca.crt. Go reads SSL_CERT_DIR in addition to bundled public roots.
+pfCASecret: ""
+
+broker:
+  audience: https://directory-broker.example.com
+  pfIssuer: https://pf.example.com
+  pfIntrospectionURL: https://pf.example.com/as/introspect.oauth2
+  pfPickupURL: https://pf.example.com/ext/ref/pickup
+  pfAdapterID: graphDirectoryLink
+  portalClientIDs: directory-portal
+  agentClientIDs: directory-agent
+  introspectionClientID: directory-broker-rs
+  entraTenantID: 00000000-0000-0000-0000-000000000000
+  entraClientID: 00000000-0000-0000-0000-000000000000
+  logLevel: info
+  service:
+    enabled: false # Enable only behind a reviewed mTLS mesh or TLS reverse proxy.
+
+portal:
+  publicURL: https://portal.example.com
+  pfURL: https://pf.example.com
+  pfClientID: directory-portal
+  agentClientID: directory-agent
+  connectStartURL: ""
+  logLevel: info
+  serviceType: ClusterIP # LoadBalancer is useful when the app terminates TLS itself.
+
+persistence:
+  storageClassName: ""
+  size: 1Gi
+
+resources:
+  broker: {}
+  portal: {}
+
+# existingSecret must contain TOKEN_ENCRYPTION_KEY,
+# PF_INTROSPECTION_CLIENT_SECRET, PF_PICKUP_USER, PF_PICKUP_PASSWORD,
+# ENTRA_CLIENT_SECRET, PORTAL_PF_CLIENT_SECRET,
+# PORTAL_AGENT_CLIENT_SECRET. Keep this secret and the encrypted PVC backed up
+# separately. Do not put secret values in this chart or values files.

@@ -1,0 +1,16 @@
+.env
+data/
+certs/
+.go-cache/
+.pnpm-store/
+bin/
+coverage.out
+*.test
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/terraform.tfvars
+**/terraform.tfvars.json
+**/crash.log
+helm/**/private-values*.yaml

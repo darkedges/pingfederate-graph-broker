@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "directory-broker.name" . }}-config
+  labels:
+    {{- include "directory-broker.labels" . | nindent 4 }}
+data:
+  PF_ISSUER: {{ required "broker.pfIssuer is required" .Values.broker.pfIssuer | quote }}
+  PF_INTROSPECTION_URL: {{ required "broker.pfIntrospectionURL is required" .Values.broker.pfIntrospectionURL | quote }}
+  PF_PICKUP_URL: {{ required "broker.pfPickupURL is required" .Values.broker.pfPickupURL | quote }}
+  PF_SP_ADAPTER_ID: {{ required "broker.pfAdapterID is required" .Values.broker.pfAdapterID | quote }}
+  PF_PORTAL_CLIENT_IDS: {{ required "broker.portalClientIDs is required" .Values.broker.portalClientIDs | quote }}
+  PF_AGENT_CLIENT_IDS: {{ required "broker.agentClientIDs is required" .Values.broker.agentClientIDs | quote }}
+  BROKER_AUDIENCE: {{ required "broker.audience is required" .Values.broker.audience | quote }}
+  ENTRA_TENANT_ID: {{ required "broker.entraTenantID is required" .Values.broker.entraTenantID | quote }}
+  ENTRA_CLIENT_ID: {{ required "broker.entraClientID is required" .Values.broker.entraClientID | quote }}
+  BROKER_LOG_LEVEL: {{ .Values.broker.logLevel | quote }}
+  PORTAL_PUBLIC_URL: {{ required "portal.publicURL is required" .Values.portal.publicURL | quote }}
+  PORTAL_PF_URL: {{ required "portal.pfURL is required" .Values.portal.pfURL | quote }}
+  PORTAL_PF_CLIENT_ID: {{ required "portal.pfClientID is required" .Values.portal.pfClientID | quote }}
+  PORTAL_AGENT_CLIENT_ID: {{ .Values.portal.agentClientID | quote }}
+  PORTAL_PF_CONNECT_START_URL: {{ .Values.portal.connectStartURL | quote }}
+  PORTAL_LOG_LEVEL: {{ .Values.portal.logLevel | quote }}

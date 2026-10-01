@@ -1,0 +1,149 @@
+{{- if ne (int .Values.replicaCount) 1 }}{{ fail "replicaCount must be exactly 1: storage and portal sessions are single-instance" }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "directory-broker.name" . }}
+  labels:
+    {{- include "directory-broker.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: directory-broker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "directory-broker.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 35
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      containers:
+        - name: broker
+          image: {{ .Values.image.broker | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: broker
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: {{ include "directory-broker.name" . }}-config
+          env:
+            - name: LISTEN_ADDR
+              value: {{ ternary ":8080" "127.0.0.1:8080" .Values.broker.service.enabled | quote }}
+            - name: DATA_DIR
+              value: /data
+            - name: PF_INTROSPECTION_CLIENT_ID
+              value: {{ .Values.broker.introspectionClientID | quote }}
+            {{- if .Values.pfCASecret }}
+            - name: SSL_CERT_DIR
+              value: /etc/pf-ca
+            {{- end }}
+            {{- range $key := list "TOKEN_ENCRYPTION_KEY" "PF_INTROSPECTION_CLIENT_SECRET" "PF_PICKUP_USER" "PF_PICKUP_PASSWORD" "ENTRA_CLIENT_SECRET" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.existingSecret }}
+                  key: {{ $key }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.pfCASecret }}
+            - name: pf-ca
+              mountPath: /etc/pf-ca
+              readOnly: true
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: broker
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: broker
+          resources:
+            {{- toYaml .Values.resources.broker | nindent 12 }}
+        - name: portal
+          image: {{ .Values.image.portal | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: https
+              containerPort: 8788
+          envFrom:
+            - configMapRef:
+                name: {{ include "directory-broker.name" . }}-config
+          env:
+            - name: PORTAL_LISTEN_ADDR
+              value: :8788
+            - name: PORTAL_BROKER_URL
+              value: http://127.0.0.1:8080
+            - name: PORTAL_TLS_CERT_FILE
+              value: /etc/portal-tls/tls.crt
+            - name: PORTAL_TLS_KEY_FILE
+              value: /etc/portal-tls/tls.key
+            {{- if .Values.pfCASecret }}
+            - name: SSL_CERT_DIR
+              value: /etc/pf-ca
+            {{- end }}
+            {{- range $key := list "PORTAL_PF_CLIENT_SECRET" "PORTAL_AGENT_CLIENT_SECRET" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.existingSecret }}
+                  key: {{ $key }}
+            {{- end }}
+          volumeMounts:
+            - name: portal-tls
+              mountPath: /etc/portal-tls
+              readOnly: true
+            {{- if .Values.pfCASecret }}
+            - name: pf-ca
+              mountPath: /etc/pf-ca
+              readOnly: true
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: https
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: https
+          resources:
+            {{- toYaml .Values.resources.portal | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "directory-broker.name" . }}-data
+        - name: portal-tls
+          secret:
+            secretName: {{ .Values.portalTLSSecret }}
+        {{- if .Values.pfCASecret }}
+        - name: pf-ca
+          secret:
+            secretName: {{ .Values.pfCASecret }}
+        {{- end }}
