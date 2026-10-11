@@ -28,6 +28,7 @@ type Config struct {
 	TenantID, EntraClientID, EntraClientSecret               string
 	EntraTokenURL, GraphBaseURL                              string
 	SAML                                                     SAMLConfig
+	Inbound                                                  InboundConfig
 }
 
 // SAMLConfig is a dedicated, opt-in one-user exchange. It is deliberately
@@ -63,6 +64,14 @@ func LoadConfig() (Config, error) {
 		},
 	}
 	var err error
+	c.Inbound = loadInboundConfig()
+	c.Inbound.TenantID = os.Getenv("INBOUND_ENTRA_TENANT_ID")
+	c.Inbound.DevInspect = os.Getenv("INBOUND_DEV_TOKEN_INSPECTION") == "true"
+	c.Inbound.FirstIssuer = os.Getenv("INBOUND_FIRST_PF_ISSUER")
+	c.Inbound.FirstTokenURL = os.Getenv("INBOUND_FIRST_PF_TOKEN_URL")
+	if err := c.Inbound.validate(c); err != nil {
+		return c, err
+	}
 	c.Key, err = base64.StdEncoding.DecodeString(os.Getenv("TOKEN_ENCRYPTION_KEY"))
 	if err != nil || len(c.Key) != 32 {
 		return c, errors.New("TOKEN_ENCRYPTION_KEY must be base64 encoding of 32 random bytes")

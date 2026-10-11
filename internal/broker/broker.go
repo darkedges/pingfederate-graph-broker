@@ -47,6 +47,8 @@ func (b *Broker) Handler() http.Handler {
 	m.HandleFunc("POST /v1/link-intents", b.user(b.beginLink))
 	m.HandleFunc("POST /v1/link-intents/{intent}/complete", b.user(b.completeLink))
 	m.HandleFunc("POST /v1/connections/saml", b.user(b.samlConnect))
+	m.HandleFunc("POST /v1/token-exchanges/entra", b.user(b.inboundExchange))
+	m.HandleFunc("POST /v1/token-exchanges/entra-first", b.inboundFirst)
 	m.HandleFunc("GET /v1/connections", b.user(b.listConnections))
 	m.HandleFunc("DELETE /v1/connections/{connection}", b.user(b.deleteConnection))
 	m.HandleFunc("POST /v1/connections/{connection}/delegations", b.user(b.createDelegation))

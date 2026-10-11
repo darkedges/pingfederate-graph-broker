@@ -40,6 +40,24 @@ spec:
             - configMapRef:
                 name: {{ include "directory-broker.name" . }}-config
           env:
+            {{- if .Values.saml.enabled }}
+            {{- range $key := list "SAML_PF_CLIENT_SECRET" "SAML_ENTRA_CLIENT_SECRET" "SAML_OBO_CLIENT_SECRET" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.existingSecret }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.inbound.enabled }}
+            {{- range $key := list "INBOUND_ENTRA_CLIENT_SECRET" "INBOUND_PF_CLIENT_SECRET" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.existingSecret }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
             - name: LISTEN_ADDR
               value: {{ ternary ":8080" "127.0.0.1:8080" .Values.broker.service.enabled | quote }}
             - name: DATA_DIR
@@ -71,13 +89,13 @@ spec:
             capabilities:
               drop: [ALL]
           readinessProbe:
-            httpGet:
-              path: /healthz
-              port: broker
+            exec:
+              command: ["/broker", "-healthcheck"]
+            timeoutSeconds: 3
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: broker
+            exec:
+              command: ["/broker", "-healthcheck"]
+            timeoutSeconds: 3
           resources:
             {{- toYaml .Values.resources.broker | nindent 12 }}
         - name: portal

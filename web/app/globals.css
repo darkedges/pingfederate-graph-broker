@@ -45,6 +45,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 .hero h1 em{font-style:normal;color:#8ce2e2}
 .hero p{max-width:550px;font-size:13px;line-height:1.65;color:#b8c6d8;margin:0}
 .hero-actions{display:flex;align-items:center;gap:19px;margin-top:25px;flex-wrap:wrap}
+.inbound-hero .hero-actions .button{max-width:100%;white-space:normal;text-align:center}
 .hero-note{display:flex;align-items:center;gap:7px;color:#a2b8ce;font-size:11px}
 .hero-art{position:absolute;right:56px;top:50%;transform:translateY(-50%);height:240px;width:270px;opacity:.95}
 .orbit{position:absolute;border:1px solid #76bcd53e;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}
@@ -63,6 +64,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 .step.complete .step-icon{background:#e3f5ef;color:#168c6e}.step.current{border-color:#a9c3f7;box-shadow:0 0 0 2px #a9c3f72e}.step.current .step-icon{background:#eaf1ff;color:#3375eb}
 .step div:last-child{min-width:0}.step span{display:block;color:#9ca8b6;font-size:10px;font-weight:800;letter-spacing:.08em}.step strong{display:block;font-size:12px;font-weight:720;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.step small{display:block;color:#8390a0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .section{scroll-margin-top:16px}
+.flow-tabs{background:#fff;border:1px solid var(--line);border-radius:13px;margin-bottom:24px;gap:28px}.flow-tabs .tab{font-size:14px;padding:20px 3px}.tab:focus-visible{outline:3px solid #83aaef;outline-offset:-3px}.empty-card summary{cursor:pointer;font-weight:750}
 .section>.section-heading{margin-top:39px}
 .button{display:inline-flex;align-items:center;justify-content:center;gap:9px;border-radius:9px;min-height:39px;padding:0 15px;border:1px solid transparent;font-size:12px;font-weight:750;white-space:nowrap;transition:transform .15s,background .15s,box-shadow .15s}
 .button:not(:disabled):hover{transform:translateY(-1px)}
@@ -119,4 +121,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 @media(max-width:1120px){.hero-art{opacity:.5;right:12px}.hero-content{max-width:560px}.operation-list{grid-template-columns:1fr}.operation{padding:10px 12px}.main{padding:0 28px 22px}}
 @media(max-width:800px){.shell{display:block}.sidebar{position:static;height:auto;min-height:0;width:100%;padding:13px 17px;display:block}.brand{padding:2px 0 12px}.sidebar-section,.sidebar-bottom{display:none}.sidebar nav{display:flex;flex-direction:row;overflow-x:auto;gap:4px}.nav-item{flex:0 0 auto;height:36px;font-size:11px;padding:0 9px}.nav-item svg{height:15px;width:15px}.main{padding:0 17px 25px}.topbar{height:58px;margin-bottom:20px}.hero{min-height:240px}.hero-art{display:none}.hero-content{padding:30px}.steps{grid-template-columns:1fr}.step{padding:10px 13px}.step small{white-space:normal}.operation-list{grid-template-columns:1fr 1fr}.connection-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:550px){.topbar-status{font-size:0}.topbar-status .status-dot{font-size:12px}.hero h1{font-size:31px}.hero p{font-size:12px}.hero-actions{gap:10px}.hero-note{font-size:10px}.section-heading{align-items:start}.section-heading h2{font-size:18px}.section-heading p{font-size:11px}.stage-label{font-size:9px}.connection-grid,.operation-list,.connect-methods{grid-template-columns:1fr}.connection-details{align-items:start;flex-direction:column}.grant-footer{align-items:start;flex-direction:column}.grant-footer .button{width:100%}.search-row{flex-direction:column}.search-row .button{width:100%}.footer{flex-direction:column}.tabs{gap:14px}.tab{font-size:11px}}
+/* Keep every tab reachable without a horizontal swipe on small screens. */
+@media(max-width:800px){
+  .tabs{gap:0;padding:0 8px;overflow:visible;flex-wrap:wrap}
+  .tabs .tab{flex:1 1 0;min-width:0;justify-content:center;white-space:normal;text-align:center;overflow-wrap:anywhere;padding:14px 6px;line-height:1.4}
+  .tabs .tab svg{flex-shrink:0}
+  .flow-tabs .tab{font-size:12px;padding:16px 8px}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}

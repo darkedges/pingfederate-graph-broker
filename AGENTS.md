@@ -4,6 +4,12 @@ This is a Go broker for PingFederate 13.1 and Microsoft Graph delegated director
 
 - Keep Graph permissions read-only. Do not add Directory.ReadWrite.All or generic Graph proxying.
 - Entra access/refresh tokens stay inside the broker. Never add a public token-returning endpoint.
+  User-approved development-only exception: the Entra-first inspector may
+  disclose access tokens and returned ID tokens when both development inspection
+  flags are enabled, after exact tenant/object and PF validation. Bind results
+  to a short-lived HttpOnly browser cookie; use no-store, memory-only storage.
+  Never disclose refresh tokens or client credentials. Normal APIs retain the
+  original no-token-export rule. Never log inspected tokens or claims.
 - Authenticate with PF introspection; require issuer, audience, expiry, bearer token type,
   client allowlist, scope and broker_principal_type. Do not weaken these to make a demo pass.
 - Link connections by the canonical authenticated subject, never by an email match.

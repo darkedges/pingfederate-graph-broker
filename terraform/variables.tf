@@ -51,7 +51,7 @@ variable "pf_dev_reference_callback_url" {
   validation {
     condition = var.pf_dev_reference_callback_url == null || (
       var.portal_additional_redirect_uri != null &&
-      var.pf_dev_reference_callback_url == "${trimsuffix(var.portal_additional_redirect_uri, "/auth/callback")}/auth/reference-callback"
+      try(var.pf_dev_reference_callback_url == "${trimsuffix(var.portal_additional_redirect_uri, "/auth/callback")}/auth/reference-callback", false)
     )
     error_message = "The public Reference ID callback must be /auth/reference-callback on the configured additional portal origin."
   }

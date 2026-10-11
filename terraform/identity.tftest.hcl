@@ -4,29 +4,132 @@ mock_provider "azuread" {
       oauth2_permission_scope_ids = {
         "User.ReadBasic.All"   = "11111111-1111-1111-1111-111111111111"
         "GroupMember.Read.All" = "22222222-2222-2222-2222-222222222222"
+        "access_as_user"       = "33333333-3333-3333-3333-333333333333"
       }
     }
   }
 }
 
-mock_provider "pingfederate" {}
+mock_provider "pingfederate" {
+  mock_data "pingfederate_keypairs_signing_key" {
+    defaults = { sha256_fingerprint = "A512AA0F3CEB5D1C091200679722C154FA010FF54F8AB1686DEA25536A3229A6" }
+  }
+}
+
+mock_provider "azuread" {
+  alias = "inbound"
+  mock_data "azuread_service_principal" {
+    defaults = {
+      oauth2_permission_scope_ids = {
+        "access_as_user" = "33333333-3333-3333-3333-333333333333"
+      }
+    }
+  }
+}
 
 mock_provider "time" {}
 
+run "development_inspector_jwt_and_id_token" {
+  command = plan
+  variables {
+    activate_inbound_clients             = true
+    create_inbound_entra_exchange_policy = true
+    create_inbound_entra_first_policy    = true
+    inbound_first_jwt                    = true
+    inbound_first_issuer                 = "https://pf.test"
+    inbound_pf_client_secret             = "fake-actor-secret"
+    inbound_first_pf_client_secret       = "fake-first-secret"
+    pf_saml_expected_subject             = "canonical-user"
+  }
+  assert {
+    condition     = pingfederate_openid_connect_policy.inbound_jwt[0].return_id_token_on_token_exchange_grant && pingfederate_oauth_client.inbound_first[0].default_access_token_manager_ref.id == "brokerEntraJWT" && pingfederate_oauth_client.inbound_first[0].oidc_policy.policy_group.id == "brokerEntraOIDC" && toset(pingfederate_oauth_client.inbound_first[0].restricted_scopes) == toset(["broker.connect", "openid"])
+    error_message = "Inspector must issue JWT access tokens and genuine OIDC ID tokens with only the intended scopes."
+  }
+}
+
+run "entra_first_is_separate_and_immutable_bound" {
+  command = plan
+  variables {
+    activate_inbound_clients             = true
+    create_inbound_entra_exchange_policy = true
+    create_inbound_entra_first_policy    = true
+    inbound_pf_client_secret             = "fake-actor-secret"
+    inbound_first_pf_client_secret       = "fake-first-secret"
+    pf_saml_expected_subject             = "canonical-user"
+  }
+  assert {
+    condition     = !pingfederate_oauth_token_exchange_processor_policy.inbound_first[0].actor_token_required && pingfederate_oauth_token_exchange_processor_policy.inbound_entra[0].actor_token_required
+    error_message = "Microsoft-first must not alter the actor-bound policy."
+  }
+  assert {
+    condition = (
+      toset([for c in pingfederate_oauth_token_exchange_processor_policy.inbound_first[0].processor_mappings[0].issuance_criteria.conditional_criteria : "${c.attribute_name}=${c.value}"]) == toset([
+        "tid=11111111-1111-1111-1111-111111111111",
+        "oid=4576e3b2-c5dc-4f1c-af69-1c5042eb538d",
+        "scp=access_as_user",
+      ]) &&
+      pingfederate_oauth_token_exchange_processor_policy.inbound_first[0].processor_mappings[0].attribute_contract_fulfillment["subject"].source.type == "TEXT" &&
+      pingfederate_oauth_token_exchange_processor_policy.inbound_first[0].processor_mappings[0].attribute_contract_fulfillment["subject"].value == "canonical-user"
+    )
+    error_message = "Canonical identity must be mapped only after exact immutable tenant/object and permission checks."
+  }
+  assert {
+    condition     = pingfederate_oauth_client.inbound_first[0].client_id != pingfederate_oauth_client.inbound_exchange[0].client_id && pingfederate_oauth_client.inbound_first[0].restrict_to_default_access_token_manager && pingfederate_oauth_client.inbound_first[0].restrict_scopes && toset(pingfederate_oauth_client.inbound_first[0].grant_types) == toset(["TOKEN_EXCHANGE"])
+    error_message = "Entra-first needs a dedicated, scoped token-exchange-only client."
+  }
+}
+
+run "inbound_exchange_is_actor_bound" {
+  command = plan
+  variables {
+    activate_inbound_clients             = true
+    create_inbound_entra_exchange_policy = true
+    inbound_pf_client_secret             = "fake-inbound-secret"
+    pf_saml_expected_subject             = "canonical-user"
+  }
+  assert {
+    condition     = pingfederate_oauth_token_exchange_processor_policy.inbound_entra[0].actor_token_required
+    error_message = "Inbound exchange must require a validated PF actor token."
+  }
+  assert {
+    condition     = length(pingfederate_oauth_token_exchange_processor_policy.inbound_entra[0].processor_mappings[0].issuance_criteria.conditional_criteria) == 9
+    error_message = "Preserve tenant, object, scope and all six portal actor checks."
+  }
+  assert {
+    condition     = pingfederate_oauth_client.inbound_exchange[0].restrict_to_default_access_token_manager && pingfederate_oauth_client.inbound_exchange[0].restrict_scopes
+    error_message = "Exchange client must not select other ATMs or scopes."
+  }
+}
+
 variables {
-  activate_clients         = false
-  attach_pf_token_contract = false
-  enable_dev_login         = false
-  enable_local_pf_tls      = false
-  activate_local_pf_tls    = false
-  entra_tenant_id          = "11111111-1111-1111-1111-111111111111"
-  pf_admin_url             = "https://localhost:9999"
-  pf_public_url            = "https://localhost:9031"
-  portal_redirect_uri      = "https://localhost:8788/auth/callback"
-  broker_audience          = "https://broker.example.test"
-  pf_portal_client_secret  = "fake-portal-secret"
-  pf_agent_client_secret   = "fake-agent-secret"
-  pf_broker_client_secret  = "fake-broker-secret"
+  manage_pf_virtual_issuer             = false
+  inbound_entra_tenant_id              = null
+  pf_dev_reference_callback_url        = null
+  portal_additional_redirect_uri       = null
+  pf_oidc_public_redirect_uri          = null
+  enable_dev_handoff                   = false
+  enable_dev_second_login              = false
+  enable_saml_exchange_client          = false
+  create_saml_processor_policy         = false
+  create_saml_signing_key              = false
+  stage_msft11_generator               = false
+  stage_msft11_mapping                 = false
+  stage_msft11_generator_group         = false
+  create_inbound_entra_exchange_policy = false
+  create_inbound_entra_first_policy    = false
+  activate_clients                     = false
+  attach_pf_token_contract             = false
+  enable_dev_login                     = false
+  enable_local_pf_tls                  = false
+  activate_local_pf_tls                = false
+  entra_tenant_id                      = "11111111-1111-1111-1111-111111111111"
+  pf_admin_url                         = "https://localhost:9999"
+  pf_public_url                        = "https://localhost:9031"
+  portal_redirect_uri                  = "https://localhost:8788/auth/callback"
+  broker_audience                      = "https://broker.example.test"
+  pf_portal_client_secret              = "fake-portal-secret"
+  pf_agent_client_secret               = "fake-agent-secret"
+  pf_broker_client_secret              = "fake-broker-secret"
 }
 
 run "scoped_clients_and_read_only_entra_app" {
@@ -126,7 +229,7 @@ run "dev_login_rejects_nonlocal_admin" {
     pf_admin_url          = "https://pf.example.test:9999"
   }
 
-  expect_failures = [pingfederate_password_credential_validator.dev_login]
+  expect_failures = [pingfederate_password_credential_validator.dev_login, pingfederate_oauth_client.saml_exchange]
 }
 
 run "attach_existing_pf_token_contract" {

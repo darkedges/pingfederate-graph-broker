@@ -41,22 +41,27 @@ func (p *portal) app(w http.ResponseWriter, r *http.Request) {
 func (p *portal) apiSession(w http.ResponseWriter, r *http.Request) {
 	_, s := p.current(r)
 	d := struct {
-		SignedIn               bool      `json:"signedIn"`
-		CSRF                   string    `json:"csrf,omitempty"`
-		CanConnect             bool      `json:"canConnect"`
-		CanSAMLConnect         bool      `json:"canSamlConnect"`
-		CanDelegate            bool      `json:"canDelegate"`
-		Busy                   bool      `json:"busy"`
-		Pending                bool      `json:"pending"`
-		ConnectFailed          bool      `json:"connectFailed"`
-		ConnectionID           string    `json:"connectionId,omitempty"`
-		DelegationActive       bool      `json:"delegationActive"`
-		DelegationConnectionID string    `json:"delegationConnectionId,omitempty"`
-		DelegationExpires      time.Time `json:"delegationExpires,omitempty"`
-		DelegationOps          []string  `json:"delegationOps,omitempty"`
-	}{CanDelegate: p.c.agentClientID != "" && p.c.agentClientSecret != ""}
+		SignedIn               bool           `json:"signedIn"`
+		CanInboundFirst        bool           `json:"canInboundFirst"`
+		CSRF                   string         `json:"csrf,omitempty"`
+		CanConnect             bool           `json:"canConnect"`
+		CanInboundExchange     bool           `json:"canInboundExchange"`
+		InboundResult          map[string]any `json:"inboundResult,omitempty"`
+		CanSAMLConnect         bool           `json:"canSamlConnect"`
+		CanDelegate            bool           `json:"canDelegate"`
+		Busy                   bool           `json:"busy"`
+		Pending                bool           `json:"pending"`
+		ConnectFailed          bool           `json:"connectFailed"`
+		ConnectionID           string         `json:"connectionId,omitempty"`
+		DelegationActive       bool           `json:"delegationActive"`
+		DelegationConnectionID string         `json:"delegationConnectionId,omitempty"`
+		DelegationExpires      time.Time      `json:"delegationExpires,omitempty"`
+		DelegationOps          []string       `json:"delegationOps,omitempty"`
+	}{CanInboundFirst: p.c.inboundFirstEnabled, CanDelegate: p.c.agentClientID != "" && p.c.agentClientSecret != ""}
 	if s != nil {
 		d.SignedIn = true
+		d.CanInboundExchange = p.c.inboundEnabled && s.subject == p.c.inboundSubject
+		d.InboundResult = s.inboundResult
 		d.CanConnect = p.c.startURL != nil && p.c.referenceSubject != "" && s.subject == p.c.referenceSubject
 		d.CanSAMLConnect = p.c.samlConnectEnabled && p.c.samlSubject != "" && s.subject == p.c.samlSubject
 		d.CSRF = s.csrf

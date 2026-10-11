@@ -1,0 +1,72 @@
+# Preparation profile; certificate trust and migration must be ready before install.
+# Target context: docker-desktop. Namespace/release: entraidbroker.
+image:
+  broker: docker.io/darkedges/entraid-broker:v0.01
+  portal: docker.io/darkedges/entraid-portal:v0.01
+imagePullSecrets: [] # Public Docker Hub repositories; no pull credentials.
+existingSecret: directory-broker-credentials
+portalTLSSecret: entraidbroker-portal-tls
+
+persistence:
+  storageClassName: "" # Omit storageClassName to use the cluster default.
+  size: 1Gi
+
+broker:
+  # Keep the actual minted-token issuer; this is NOT a network destination.
+  pfIssuer: https://localhost:9031
+  pfIntrospectionURL: https://ping.entraid.darkedges.com/as/introspect.oauth2
+  pfPickupURL: https://ping.entraid.darkedges.com/ext/ref/pickup
+  audience: https://directory-broker.example.com
+  entraTenantID: 224fe641-9036-4262-9a10-281a65cdbf6e
+  entraClientID: 2e3b8de5-91cd-4217-8d8b-cb951401bdc3
+  service:
+    enabled: false # Enable with broker ingress only after network isolation review.
+
+portal:
+  publicURL: https://portal.entraid.darkedges.com
+  pfURL: https://ping.entraid.darkedges.com
+  pfBrowserURL: https://ping.entraid.darkedges.com
+  referenceSubject: broker-dev-user
+  samlSubject: nirving@ping.darkedges.com
+  samlConnectEnabled: true
+  connectStartURL: https://ping.entraid.darkedges.com/sp/startSSO.ping?PartnerIdpId=https%3A%2F%2Flogin.microsoftonline.com%2F224fe641-9036-4262-9a10-281a65cdbf6e%2Fv2.0&SpSessionAuthnAdapterId=graphDirectoryLink
+
+saml:
+  enabled: true
+  pfTokenURL: https://ping.entraid.darkedges.com/as/token.oauth2
+  entraTenantID: 224fe641-9036-4262-9a10-281a65cdbf6e
+  entraClientID: edd9f241-d550-4de8-845d-3fa299090014
+  entraScope: api://996f4591-a7c7-426f-ae3a-a1a1e9497168/access_as_user openid profile email
+  oboClientID: 996f4591-a7c7-426f-ae3a-a1a1e9497168
+  expectedPFSubject: nirving@ping.darkedges.com
+  expectedEntraOID: 4576e3b2-c5dc-4f1c-af69-1c5042eb538d
+
+ingress:
+  portal:
+    enabled: true
+    className: nginx
+    host: portal.entraid.darkedges.com
+    tlsSecretName: entraidbroker-portal-tls
+    annotations:
+      cert-manager.io/cluster-issuer: vault-issuer
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/enable-access-log: "false"
+      nginx.ingress.kubernetes.io/proxy-ssl-verify: "on"
+      nginx.ingress.kubernetes.io/proxy-ssl-server-name: "on"
+      nginx.ingress.kubernetes.io/proxy-ssl-name: portal.entraid.darkedges.com
+      # Existing Secret containing ca.crt for the portal certificate issuer.
+      nginx.ingress.kubernetes.io/proxy-ssl-secret: entraidbroker/portal-upstream-ca
+  broker:
+    enabled: false # Pending controller-to-broker network isolation review.
+    className: nginx
+    host: broker.entraid.darkedges.com
+    tlsSecretName: entraidbroker-broker-tls
+    allowHTTPUpstream: false
+    annotations:
+      cert-manager.io/cluster-issuer: vault-issuer
+      nginx.ingress.kubernetes.io/backend-protocol: HTTP
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/enable-access-log: "false"

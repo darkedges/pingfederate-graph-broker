@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flowTabs, resolveFlow } from './flows.mjs';
 
 const operations = [
   { id: 'directory.find_users', label: 'Find users', detail: 'Search basic user profiles', icon: 'users' },
@@ -62,6 +63,31 @@ function dateLabel(value) {
 
 function Spinner() { return <span className="spinner" aria-hidden="true"/>; }
 
+function TokenInspection() {
+  const [result, setResult] = useState(null);
+  const [tab, setTab] = useState('entra');
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/exchange/result', {credentials:'same-origin',cache:'no-store'})
+      .then(r => r.ok ? r.json() : null).then(value => {if(alive) setResult(value);}).catch(() => {});
+    const timeout = setTimeout(() => {setResult(null);setVisible(false);}, 5*60*1000);
+    return () => {alive=false;clearTimeout(timeout);};
+  }, []);
+  if (!result) return null;
+  const tabs = [{id:'entra',label:'Entra ID access token',token:result.entraToken,claims:result.entraClaims},{id:'pf',label:'PF access token',token:result.pfToken,claims:result.pfClaims},{id:'pfid',label:'PF ID token',token:result.pfIdToken,claims:result.pfIdClaims}];
+  const selected = tabs.find(item=>item.id===tab);
+  return <div className="explorer" style={{marginTop:24,textAlign:'left'}}>
+    <div className="tabs" role="tablist" aria-label="Exchanged tokens">{tabs.map((item,index)=><button key={item.id} id={`token-tab-${item.id}`} type="button" className={`tab ${tab===item.id?'active':''}`} role="tab" aria-selected={tab===item.id} aria-controls={`token-panel-${item.id}`} tabIndex={tab===item.id?0:-1} onClick={()=>{setTab(item.id);setVisible(false);}} onKeyDown={e=>{let n=index;if(e.key==='ArrowRight')n=(index+1)%tabs.length;else if(e.key==='ArrowLeft')n=(index+tabs.length-1)%tabs.length;else if(e.key==='Home')n=0;else if(e.key==='End')n=tabs.length-1;else return;e.preventDefault();setTab(tabs[n].id);setVisible(false);document.getElementById(`token-tab-${tabs[n].id}`)?.focus();}}>{item.label}</button>)}</div>
+    <div role="tabpanel" id={`token-panel-${tab}`} aria-labelledby={`token-tab-${tab}`} style={{padding:24}}>
+      <h3>{selected.label}</h3>
+      {result.developmentInspection && <div className="callout" role="status">Development-only: bearer tokens grant access. Do not share, screenshot or paste them into external decoders. Results expire after five minutes.</div>}
+      {selected.token ? <><button type="button" className="button button-secondary" aria-expanded={visible} onClick={()=>setVisible(!visible)}>{visible?'Hide full token':'Reveal full token'}</button>{visible && <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',padding:16,background:'#101f35',color:'#d4efff',borderRadius:8}}>{selected.token}</pre>}</> : <p className="helper-text">{tab==='pfid'?result.identityTokenStatus:'Raw token inspection is disabled.'}</p>}
+      {selected.claims && <><h4>Decoded claims</h4><p className="helper-text">Decoded for inspection, not used as authentication input. The broker validates identity and PF authority separately.</p><pre style={{overflow:'auto',padding:16,background:'#f3f6fb',borderRadius:8}}>{JSON.stringify(selected.claims,null,2)}</pre></>}
+    </div>
+  </div>;
+}
+
 function ConnectChoices({ session, method, onMethodChange }) {
   return <div className="connect-choices">
     <div className="connect-methods" role="group" aria-label="Microsoft connection method">
@@ -73,6 +99,25 @@ function ConnectChoices({ session, method, onMethodChange }) {
 }
 
 export default function PortalPage() {
+  const [direction, setDirection] = useState('inbound');
+  function selectDirection(id) {
+    setDirection(id);
+    try { window.sessionStorage.setItem('portal-flow-direction', id); } catch {}
+    window.history.replaceState(null, '', `#${flowTabs.find(item=>item.id===id).hash}`);
+  }
+  useEffect(() => {
+    function syncDirection() {
+      const hash = window.location.hash.slice(1);
+      let previous;
+      try { previous = window.sessionStorage.getItem('portal-flow-direction'); } catch {}
+      const next = resolveFlow(hash, previous);
+      setDirection(next);
+      try { window.sessionStorage.setItem('portal-flow-direction',next); } catch {}
+    }
+    syncDirection();
+    window.addEventListener('hashchange',syncDirection);
+    return ()=>window.removeEventListener('hashchange',syncDirection);
+  },[]);
   const [session, setSession] = useState(null);
   const [connections, setConnections] = useState([]);
   const [selectedConnection, setSelectedConnection] = useState('');
@@ -205,9 +250,11 @@ export default function PortalPage() {
       <div className="sidebar-section">WORKSPACE</div>
       <nav aria-label="Main navigation">
         <a className="nav-item active" href="#overview"><Icon name="grid" size={18}/> Overview</a>
-        <a className="nav-item" href="#connections"><Icon name="link" size={18}/> Connections</a>
-        <a className="nav-item" href="#delegation"><Icon name="shield" size={18}/> Delegations</a>
-        <a className="nav-item" href="#explorer"><Icon name="search" size={18}/> Directory explorer</a>
+        {direction === 'inbound' ? <a className="nav-item" href="#entra-first"><Icon name="refresh" size={18}/> Token exchange</a> : <>
+          <a className="nav-item" href="#connections"><Icon name="link" size={18}/> Connections</a>
+          <a className="nav-item" href="#delegation"><Icon name="shield" size={18}/> Delegations</a>
+          <a className="nav-item" href="#explorer"><Icon name="search" size={18}/> Directory explorer</a>
+        </>}
       </nav>
       <div className="sidebar-bottom"><div className="environment"><span className="environment-dot"/> LOCAL ENVIRONMENT</div><div className="sidebar-caption">PingFederate · Microsoft Graph<br/>Read-only access by design</div></div>
     </aside>
@@ -216,6 +263,28 @@ export default function PortalPage() {
       <header className="topbar"><div className="breadcrumbs">Workspace <Icon name="chevron" size={14}/> <span>Overview</span></div><div className="topbar-right"><span className="topbar-status"><span className="status-dot"/>{session?.signedIn ? 'Signed in to PingFederate' : 'Not signed in'}</span>{session?.signedIn && <form action="/logout" method="post"><input type="hidden" name="csrf" value={session.csrf}/><button className="icon-button" title="Sign out" aria-label="Sign out"><Icon name="logout" size={18}/></button></form>}</div></header>
 
       {notice && <div className={`notice ${notice.type}`} role="status"><Icon name={notice.type === 'error' ? 'shield' : 'check'} size={18}/><span>{notice.text}</span><button onClick={() => setNotice(null)} aria-label="Dismiss notification">×</button></div>}
+
+      <div className="tabs flow-tabs" role="tablist" aria-label="Token exchange direction">{flowTabs.map((item,index)=><button key={item.id} id={`flow-tab-${item.id}`} type="button" role="tab" aria-selected={direction===item.id} aria-controls={`flow-panel-${item.id}`} tabIndex={direction===item.id?0:-1} className={`tab ${direction===item.id?'active':''}`} onClick={()=>selectDirection(item.id)} onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?1:(index+1)%2;selectDirection(flowTabs[next].id);document.getElementById(`flow-tab-${flowTabs[next].id}`)?.focus();}}><Icon name="refresh" size={18}/>{item.label}</button>)}</div>
+
+      {direction === 'inbound' && <div id="flow-panel-inbound" role="tabpanel" aria-labelledby="flow-tab-inbound">
+        <section className="hero inbound-hero" id="entra-first">
+          <div className="hero-glow"/>
+          <div className="hero-content">
+            <div className="eyebrow"><span className="eyebrow-line"/> SECURE IDENTITY BRIDGE</div>
+            <h1>Microsoft identity.<br/><em>PingFederate access.</em></h1>
+            <p>Sign in with Microsoft Entra ID, exchange your API access token for PingFederate tokens, and explore their claims. No prior PingFederate sign-in is needed.</p>
+            <div className="hero-actions">
+              {loading ? <span className="hero-note"><Spinner/> Loading exchange settings…</span> : session?.canInboundFirst ? <a className="button button-light" href="/exchange/entra-first">Sign in with Microsoft <Icon name="arrow" size={17}/></a> : <span className="hero-note">Microsoft-first token exchange is not configured.</span>}
+              <span className="hero-note"><Icon name="lock" size={15}/> Development-only token inspection</span>
+            </div>
+          </div>
+          <div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="center-mark"><Icon name="shield" size={42} strokeWidth={1.4}/></div><div className="orbit-chip chip-one"><Icon name="refresh" size={22}/></div><div className="orbit-chip chip-two"><Icon name="users" size={22}/></div><div className="orbit-chip chip-three"><Icon name="lock" size={22}/></div></div>
+        </section>
+        <TokenInspection/>
+        {session?.signedIn && session.canInboundExchange && <section id="token-exchange" className="section"><details className="empty-card"><summary>Advanced: exchange with a PingFederate actor session</summary><p>This alternative uses your current PF session as the actor.</p><form action="/exchange/entra" method="post"><input type="hidden" name="csrf" value={session.csrf}/><button className="button button-primary">Sign in to Microsoft and exchange <Icon name="arrow" size={17}/></button></form>{session.inboundResult && <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',textAlign:'left'}}>{JSON.stringify(session.inboundResult,null,2)}</pre>}</details></section>}
+      </div>}
+
+      {direction === 'outbound' && <div id="flow-panel-outbound" role="tabpanel" aria-labelledby="flow-tab-outbound">
 
       <section className="hero"><div className="hero-glow"/><div className="hero-content"><div className="eyebrow"><span className="eyebrow-line"/> SECURE DIRECTORY BRIDGE</div><h1>One connection.<br/><em>Controlled access.</em></h1><p>Connect Microsoft through PingFederate, grant only the reads an agent needs, and explore your directory without exposing tokens to the browser.</p><div className="hero-actions">{session?.signedIn ? <a className="button button-light" href="#connections">Manage connections <Icon name="arrow" size={17}/></a> : <a className="button button-light" href="/auth/login">Sign in with PingFederate <Icon name="arrow" size={17}/></a>}<span className="hero-note"><Icon name="lock" size={15}/> Tokens stay server-side</span></div></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="center-mark"><Icon name="shield" size={42} strokeWidth={1.4}/></div><div className="orbit-chip chip-one"><Icon name="layers" size={22}/></div><div className="orbit-chip chip-two"><Icon name="users" size={22}/></div><div className="orbit-chip chip-three"><Icon name="database" size={22}/></div></div></section>
 
@@ -247,7 +316,8 @@ export default function PortalPage() {
           </div>
         </section>
       </>}
-      <footer className="footer"><span>Broker Portal · Local development workspace</span><span><Icon name="shield" size={14}/> Tokens never leave the backend</span></footer>
+      </div>}
+      <footer className="footer"><span>Broker Portal · Local development workspace</span><span><Icon name="shield" size={14}/>{direction==='inbound'?'Development token inspector · handle tokens securely':'Directory tokens stay server-side'}</span></footer>
     </main>
   </div>;
 }

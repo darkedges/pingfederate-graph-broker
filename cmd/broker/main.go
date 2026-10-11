@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +16,14 @@ import (
 )
 
 func main() {
+	health := flag.Bool("healthcheck", false, "check the local broker health endpoint and exit")
+	flag.Parse()
+	if *health {
+		if err := checkHealth("http://127.0.0.1:8080/healthz"); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if strings.EqualFold(os.Getenv("BROKER_LOG_LEVEL"), "debug") {
 		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -23,6 +32,21 @@ func main() {
 		logger.Error("broker_stopped", "error", err.Error())
 		os.Exit(1)
 	}
+}
+
+// A shell-free exec probe keeps the broker loopback-only when no API Service
+// is requested. It neither loads credentials nor opens the encrypted store.
+func checkHealth(endpoint string) error {
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err := client.Get(endpoint)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return errors.New("broker health check failed")
+	}
+	return nil
 }
 func run(logger *slog.Logger) error {
 	cfg, err := broker.LoadConfig()

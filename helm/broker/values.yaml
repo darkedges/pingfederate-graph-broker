@@ -29,15 +29,60 @@ broker:
 portal:
   publicURL: https://portal.example.com
   pfURL: https://pf.example.com
+  pfBrowserURL: "" # Defaults to pfURL; override for separate browser/backchannel origins.
+  referenceSubject: "" # Required when connectStartURL is set.
+  samlSubject: ""
+  samlConnectEnabled: false
   pfClientID: directory-portal
   agentClientID: directory-agent
   connectStartURL: ""
   logLevel: info
   serviceType: ClusterIP # LoadBalancer is useful when the app terminates TLS itself.
 
+# Controller-specific annotations are deliberately supplied by the operator.
+# Portal upstream is HTTPS on 443; broker upstream is HTTP on 8080.
+# Configure HTTPS redirects on the controller. Never enable ingress access logs
+# for OAuth callback query strings or Authorization headers.
+ingress:
+  portal:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  broker:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecretName: ""
+    allowHTTPUpstream: false
+    annotations: {}
+
 persistence:
   storageClassName: ""
   size: 1Gi
+
+inbound:
+  enabled: false
+  entraClientID: ""
+  pfClientID: directory-entra-exchange
+  pfSubject: ""
+  entraObjectID: ""
+
+saml:
+  enabled: false
+  pfTokenURL: ""
+  pfClientID: directory-saml-exchange
+  entraTenantID: ""
+  entraClientID: ""
+  entraScope: ""
+  oboClientID: ""
+  expectedPFSubject: ""
+  expectedEntraOID: ""
+# When enabled, existingSecret also requires SAML_PF_CLIENT_SECRET,
+# SAML_ENTRA_CLIENT_SECRET and SAML_OBO_CLIENT_SECRET.
+# When enabled, existingSecret also requires INBOUND_ENTRA_CLIENT_SECRET
+# and INBOUND_PF_CLIENT_SECRET. No secrets are passed to the portal.
 
 resources:
   broker: {}

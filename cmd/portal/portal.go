@@ -27,23 +27,28 @@ type loginAttempt struct {
 	expires         time.Time
 }
 type session struct {
-	token, csrf, intent, subject string
-	expires, intentExpires       time.Time
-	busy, connectFailed          bool
-	connectionID                 string
-	delegationID                 string
-	delegationConnectionID       string
-	delegationExpires            time.Time
-	delegationOps                []string
-	delegationBusy               bool
+	token, csrf, intent, subject  string
+	expires, intentExpires        time.Time
+	busy, connectFailed           bool
+	connectionID                  string
+	delegationID                  string
+	delegationConnectionID        string
+	delegationExpires             time.Time
+	delegationOps                 []string
+	delegationBusy                bool
+	inboundState, inboundVerifier string
+	inboundExpires                time.Time
+	inboundResult                 map[string]any
 }
 type portal struct {
-	c        config
-	client   *http.Client
-	log      *slog.Logger
-	mu       sync.Mutex
-	logins   map[string]loginAttempt
-	sessions map[string]*session
+	inspectionResults map[string]inspectionResult
+	c                 config
+	client            *http.Client
+	log               *slog.Logger
+	mu                sync.Mutex
+	logins            map[string]loginAttempt
+	inboundLogins     map[string]loginAttempt
+	sessions          map[string]*session
 }
 
 func newPortal(c config, logger *slog.Logger) *portal {
@@ -53,7 +58,7 @@ func newPortal(c config, logger *slog.Logger) *portal {
 	if c.pfBrowserURL == nil {
 		c.pfBrowserURL = c.pfURL
 	}
-	return &portal{c: c, client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, log: logger, logins: make(map[string]loginAttempt), sessions: make(map[string]*session)}
+	return &portal{c: c, client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, log: logger, logins: make(map[string]loginAttempt), inboundLogins: make(map[string]loginAttempt), sessions: make(map[string]*session)}
 }
 
 func random() string {
@@ -74,6 +79,7 @@ func (p *portal) handler() http.Handler {
 	m.HandleFunc("GET /legacy", p.home)
 	m.Handle("GET /_next/", p.assets())
 	m.HandleFunc("GET /api/session", p.apiSession)
+	m.HandleFunc("GET /api/exchange/result", p.inspectionResult)
 	m.HandleFunc("GET /api/connections", p.apiConnections)
 	m.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	m.HandleFunc("GET /auth/login", p.login)
@@ -83,6 +89,10 @@ func (p *portal) handler() http.Handler {
 	})
 	m.HandleFunc("POST /connect", p.connect)
 	m.HandleFunc("POST /connect/saml", p.connectSAML)
+	m.HandleFunc("POST /exchange/entra", p.beginInbound)
+	m.HandleFunc("GET /exchange/entra-first", p.beginInboundFirst)
+	m.HandleFunc("GET /exchange/entra/continue", p.continueInbound)
+	m.HandleFunc("GET /auth/entra/callback", p.inboundCallback)
 	m.HandleFunc("GET /connect/continue", p.continueConnect)
 	m.HandleFunc("POST /auth/reference-callback", p.referenceCallback)
 	m.HandleFunc("GET /connections", p.connections)
@@ -138,6 +148,16 @@ func (p *portal) current(r *http.Request) (string, *session) {
 
 func (p *portal) pruneLocked() {
 	now := time.Now()
+	for id, result := range p.inspectionResults {
+		if !now.Before(result.expires) {
+			delete(p.inspectionResults, id)
+		}
+	}
+	for id, attempt := range p.inboundLogins {
+		if !now.Before(attempt.expires) {
+			delete(p.inboundLogins, id)
+		}
+	}
 	for id, attempt := range p.logins {
 		if !now.Before(attempt.expires) {
 			delete(p.logins, id)
@@ -631,8 +651,12 @@ func (p *portal) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	p.mu.Lock()
 	delete(p.sessions, id)
+	if c, err := r.Cookie("portal_inspection"); err == nil {
+		delete(p.inspectionResults, c.Value)
+	}
 	p.mu.Unlock()
 	cookie(w, sessionCookie, "", -1, http.SameSiteNoneMode)
+	cookie(w, "portal_inspection", "", -1, http.SameSiteStrictMode)
 	// The portal session is already gone even if the browser cannot complete
 	// the federated logout. Use the public PF origin so its session cookie is sent.
 	logoutURL := *p.c.pfBrowserURL

@@ -21,6 +21,11 @@ provider "azuread" {
   tenant_id = var.entra_tenant_id
 }
 
+provider "azuread" {
+  alias     = "inbound"
+  tenant_id = local.inbound_tenant_id
+}
+
 # Set PINGFEDERATE_PROVIDER_USERNAME and PINGFEDERATE_PROVIDER_PASSWORD in
 # the Terraform runner's environment. Trust the PF admin certificate via the
 # system trust store or PINGFEDERATE_PROVIDER_CA_CERTIFICATE_PEM_FILES.

@@ -14,6 +14,7 @@ background agents. Entra tokens stay on the backend. Agents receive directory da
 - Opaque authenticated pagination cursors, query allowlists and no credential redirects.
 - Local integration/security tests, a Next.js portal served by a separate HTTPS Go callback backend, Docker configuration, Terraform scaffolding and GitHub Actions test workflow.
 - No third-party Go dependencies.
+- Opt-in [Entra-to-PF token exchange](docs/INBOUND_ENTRA_TOKEN_EXCHANGE.md), with an independent Microsoft-first login, a separate subject-only PF policy and token-metadata inspection. An explicitly enabled development inspector adds full-token/claims tabs, PF JWT access tokens and ID tokens using a public virtual issuer. The original actor-bound exchange remains available.
 
 This is a **single-instance starter**, not a production-ready identity platform. The
 Go service and local portal callback are implemented and mock-tested. Your live PF mappings,

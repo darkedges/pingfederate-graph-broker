@@ -1,6 +1,6 @@
 .PHONY: test build build-portal build-portal-ui run run-portal portal restart-pf-stack \
 	image-broker image-portal compose-pf compose-broker compose-portal compose-down \
-	demo-up demo-down helm-lint helm-template helm-upgrade
+	demo-up demo-down helm-lint helm-test helm-template helm-upgrade
 test:
 	go test -race -count=1 ./...
 	go vet ./...
@@ -38,9 +38,13 @@ demo-up:
 	docker compose -f compose.demo.yaml up --build -d
 demo-down:
 	docker compose -f compose.demo.yaml down
+HELM_NAMESPACE ?= entraidbroker
+HELM_RELEASE ?= entraidbroker
 helm-lint:
-	helm lint helm/broker
+	helm lint helm/broker $(if $(HELM_VALUES),-f $(HELM_VALUES))
+helm-test:
+	pwsh -NoProfile -File scripts/test-helm.ps1
 helm-template:
-	helm template directory-broker helm/broker
+	helm template $(HELM_RELEASE) helm/broker --namespace $(HELM_NAMESPACE) $(if $(HELM_VALUES),-f $(HELM_VALUES))
 helm-upgrade:
-	helm upgrade --install directory-broker helm/broker --namespace directory-broker --create-namespace -f $(HELM_VALUES)
+	helm upgrade --install $(HELM_RELEASE) helm/broker --namespace $(HELM_NAMESPACE) --create-namespace -f $(HELM_VALUES)

@@ -46,7 +46,7 @@ and Secret names. Keep private values files out of version control.
 helm lint helm/broker -f /path/to/private-values.yaml
 helm template directory-broker helm/broker -f /path/to/private-values.yaml
 helm upgrade --install directory-broker helm/broker \
-  --namespace directory-broker --create-namespace \
+  --namespace entraidbroker --create-namespace \
   -f /path/to/private-values.yaml
 ```
 
@@ -66,3 +66,49 @@ connectivity. Test sign-in, link, grant, read, revoke, and disconnect after
 installation. A pod restart clears portal sessions and in-memory delegation
 selection; saved broker connections remain on the PVC. Re-grant agent access as
 needed. Back up the PVC and encryption key separately.
+
+## Ingress and namespace
+
+Use `entraidbroker`: Kubernetes namespace names cannot contain uppercase letters.
+The chart uses Helm's release namespace; it does not create a second Namespace
+resource. `--create-namespace` creates it on install. All referenced Secrets and
+PVCs must be in that namespace. PingFederate remains external.
+
+Separate `ingress.portal` and `ingress.broker` routes support different upstream
+protocols and annotations. Both are disabled by default and require an ingress
+class, host and TLS Secret when enabled. The portal host must exactly match
+`portal.publicURL`. Ingress TLS does not replace `portalTLSSecret`: the portal
+still serves HTTPS to the ingress controller. Configure the controller to use
+HTTPS upstream and validate the portal certificate with its matching hostname
+and trusted CA. Do not disable upstream certificate verification.
+
+The broker's optional Service uses HTTP. Enabling its ingress requires both
+`broker.service.enabled=true` and
+`ingress.broker.allowHTTPUpstream=true` after reviewing controller-to-pod
+network isolation or service-mesh encryption. TLS must be enforced at the
+ingress edge; do not publish plaintext bearer-token endpoints. Configure
+controller-specific HTTPS redirects and suppress access logs containing OAuth
+callback query strings, tokens or headers. Annotations are not portable between
+controllers, so provide the correct ones for your installed controller.
+
+Set `portal.referenceSubject` when configuring the Reference ID journey and
+`portal.pfBrowserURL` if browsers and pods use different PF origins. The broker
+exec health probe checks localhost without needing a shell or accessing the
+encrypted store; a Service is not necessary for health checks.
+
+For the existing outbound SAML connection, configure `saml.*`, enable
+`portal.samlConnectEnabled`, and supply `portal.samlSubject`. The existing
+credentials Secret additionally needs `SAML_PF_CLIENT_SECRET`,
+`SAML_ENTRA_CLIENT_SECRET` and `SAML_OBO_CLIENT_SECRET`. These secrets are
+injected into the broker only. Inbound exchange settings remain independent.
+
+```sh
+make helm-lint HELM_VALUES=/path/to/private-values.yaml
+make helm-template HELM_VALUES=/path/to/private-values.yaml
+make helm-upgrade HELM_VALUES=/path/to/private-values.yaml
+```
+
+These targets default to release and namespace `entraidbroker`; override
+`HELM_RELEASE` or `HELM_NAMESPACE` if needed. Build/push new images before
+deploying this chart because the broker exec probe needs the new
+`-healthcheck` option. The chart does not migrate existing encrypted state.

@@ -22,6 +22,11 @@ type config struct {
 	agentClientID, agentClientSecret                    string
 	samlConnectEnabled                                  bool
 	referenceSubject, samlSubject                       string
+	inboundEnabled                                      bool
+	inboundFirstEnabled                                 bool
+	devTokenInspection                                  bool
+	inboundWorkloadSecret                               string
+	inboundTenant, inboundClient, inboundSubject        string
 }
 
 func envURL(name string, required bool) (*url.URL, error) {
@@ -41,6 +46,19 @@ func loadConfig() (config, error) {
 	c.samlConnectEnabled = os.Getenv("PORTAL_SAML_CONNECT_ENABLED") == "true"
 	c.referenceSubject = strings.TrimSpace(os.Getenv("PORTAL_REFERENCE_SUBJECT"))
 	c.samlSubject = strings.TrimSpace(os.Getenv("PORTAL_SAML_SUBJECT"))
+	c.inboundEnabled = os.Getenv("PORTAL_INBOUND_ENABLED") == "true"
+	c.inboundTenant = os.Getenv("PORTAL_INBOUND_TENANT_ID")
+	c.inboundClient = os.Getenv("PORTAL_INBOUND_CLIENT_ID")
+	c.inboundSubject = os.Getenv("PORTAL_INBOUND_SUBJECT")
+	c.inboundFirstEnabled = os.Getenv("PORTAL_INBOUND_FIRST_ENABLED") == "true"
+	c.devTokenInspection = os.Getenv("PORTAL_DEV_TOKEN_INSPECTION") == "true"
+	c.inboundWorkloadSecret = os.Getenv("INBOUND_WORKLOAD_SECRET")
+	if c.inboundFirstEnabled && len(c.inboundWorkloadSecret) < 32 {
+		return c, errors.New("Entra-first requires INBOUND_WORKLOAD_SECRET of at least 32 characters")
+	}
+	if (c.inboundEnabled || c.inboundFirstEnabled) && (!uuidPattern.MatchString(c.inboundTenant) || !uuidPattern.MatchString(c.inboundClient) || c.inboundSubject == "") {
+		return c, errors.New("portal inbound exchange configuration is incomplete")
+	}
 	if v := os.Getenv("PORTAL_LISTEN_ADDR"); v != "" {
 		c.listen = v
 	}

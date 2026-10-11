@@ -38,6 +38,8 @@ func aadstsErrorCode(body []byte) string {
 }
 
 type tokenClaims struct {
+	Issuer   string `json:"iss"`
+	Subject  string `json:"sub"`
 	Audience any    `json:"aud"`
 	Tenant   string `json:"tid"`
 	Object   string `json:"oid"`

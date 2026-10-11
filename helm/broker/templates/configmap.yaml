@@ -5,6 +5,25 @@ metadata:
   labels:
     {{- include "directory-broker.labels" . | nindent 4 }}
 data:
+  SAML_ENABLED: {{ .Values.saml.enabled | quote }}
+  SAML_PF_TOKEN_URL: {{ .Values.saml.pfTokenURL | quote }}
+  SAML_PF_CLIENT_ID: {{ .Values.saml.pfClientID | quote }}
+  SAML_ENTRA_TENANT_ID: {{ .Values.saml.entraTenantID | quote }}
+  SAML_ENTRA_CLIENT_ID: {{ .Values.saml.entraClientID | quote }}
+  SAML_ENTRA_SCOPE: {{ .Values.saml.entraScope | quote }}
+  SAML_OBO_CLIENT_ID: {{ .Values.saml.oboClientID | quote }}
+  SAML_EXPECTED_PF_SUBJECT: {{ .Values.saml.expectedPFSubject | quote }}
+  SAML_EXPECTED_ENTRA_OID: {{ .Values.saml.expectedEntraOID | quote }}
+  INBOUND_ENABLED: {{ .Values.inbound.enabled | quote }}
+  INBOUND_ENTRA_CLIENT_ID: {{ .Values.inbound.entraClientID | quote }}
+  INBOUND_PF_CLIENT_ID: {{ .Values.inbound.pfClientID | quote }}
+  INBOUND_PF_SUBJECT: {{ .Values.inbound.pfSubject | quote }}
+  INBOUND_ENTRA_OBJECT_ID: {{ .Values.inbound.entraObjectID | quote }}
+  INBOUND_REDIRECT_URI: {{ printf "%s/auth/entra/callback" (trimSuffix "/" .Values.portal.publicURL) | quote }}
+  PORTAL_INBOUND_ENABLED: {{ .Values.inbound.enabled | quote }}
+  PORTAL_INBOUND_TENANT_ID: {{ .Values.broker.entraTenantID | quote }}
+  PORTAL_INBOUND_CLIENT_ID: {{ .Values.inbound.entraClientID | quote }}
+  PORTAL_INBOUND_SUBJECT: {{ .Values.inbound.pfSubject | quote }}
   PF_ISSUER: {{ required "broker.pfIssuer is required" .Values.broker.pfIssuer | quote }}
   PF_INTROSPECTION_URL: {{ required "broker.pfIntrospectionURL is required" .Values.broker.pfIntrospectionURL | quote }}
   PF_PICKUP_URL: {{ required "broker.pfPickupURL is required" .Values.broker.pfPickupURL | quote }}
@@ -17,6 +36,10 @@ data:
   BROKER_LOG_LEVEL: {{ .Values.broker.logLevel | quote }}
   PORTAL_PUBLIC_URL: {{ required "portal.publicURL is required" .Values.portal.publicURL | quote }}
   PORTAL_PF_URL: {{ required "portal.pfURL is required" .Values.portal.pfURL | quote }}
+  PORTAL_PF_BROWSER_URL: {{ .Values.portal.pfBrowserURL | quote }}
+  PORTAL_REFERENCE_SUBJECT: {{ .Values.portal.referenceSubject | quote }}
+  PORTAL_SAML_SUBJECT: {{ .Values.portal.samlSubject | quote }}
+  PORTAL_SAML_CONNECT_ENABLED: {{ .Values.portal.samlConnectEnabled | quote }}
   PORTAL_PF_CLIENT_ID: {{ required "portal.pfClientID is required" .Values.portal.pfClientID | quote }}
   PORTAL_AGENT_CLIENT_ID: {{ .Values.portal.agentClientID | quote }}
   PORTAL_PF_CONNECT_START_URL: {{ .Values.portal.connectStartURL | quote }}
